@@ -1,0 +1,1859 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Billing & ISP Management Pro</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <!-- FontAwesome Icon -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        @media print {
+            body * {
+                visibility: hidden !important;
+            }
+            #print-area, #print-area * {
+                visibility: visible !important;
+            }
+            #print-area {
+                position: absolute !important;
+                left: 0 !important;
+                top: 0 !important;
+                width: 100% !important;
+                display: block !important;
+            }
+            @page {
+                size: auto;
+                margin: 0mm;
+            }
+        }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 font-sans antialiased min-h-screen flex flex-col">
+
+    <!-- LOGIN SCREEN CONTAINER -->
+    <div id="login-screen" class="fixed inset-0 bg-slate-900 z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-8 shadow-2xl border border-gray-100">
+            <div class="text-center mb-6">
+                <div id="login-logo-preview" class="bg-indigo-50 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-inner overflow-hidden border border-gray-200 p-1">
+                    <i class="fa-solid fa-wifi text-2xl text-indigo-600"></i>
+                </div>
+                <h2 class="text-xl font-bold text-gray-800" id="login-brand-display">NetManager Pro</h2>
+                <p class="text-xs text-gray-500 mt-1">Silakan login untuk masuk ke sistem billing</p>
+            </div>
+            <form onsubmit="handleLogin(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-gray-500 mb-1">Username Admin</label>
+                    <input type="text" id="login-user" required placeholder="admin" class="w-full border border-gray-300 rounded-lg p-3 text-xs focus:ring-2 focus:ring-indigo-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-gray-500 mb-1">Password</label>
+                    <input type="password" id="login-pass" required placeholder="••••••••" class="w-full border border-gray-300 rounded-lg p-3 text-xs focus:ring-2 focus:ring-indigo-500 outline-none">
+                </div>
+                <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs py-3 rounded-lg transition shadow-sm cursor-pointer">
+                    <i class="fa-solid fa-right-to-bracket mr-2"></i> Masuk Sistem
+                </button>
+            </form>
+            <div class="mt-6 pt-4 border-t border-gray-100 text-center space-y-2">
+                <p class="text-[11px] text-gray-400">Default: <code>admin</code> / <code>admin123</code></p>
+                <button onclick="resetLoginDefault()" class="text-xs text-indigo-600 hover:text-indigo-800 font-medium underline cursor-pointer">
+                    <i class="fa-solid fa-rotate-left mr-1"></i> Reset Akses Default
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN APP WRAPPER -->
+    <div id="app-wrapper" class="hidden flex-grow flex flex-col min-h-screen">
+        
+        <!-- Header Navigation -->
+        <header class="bg-slate-900 text-white shadow-md sticky top-0 z-40">
+            <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+                <div class="flex items-center space-x-3">
+                    <div id="header-logo-container" class="bg-white p-1 rounded-lg w-10 h-10 flex items-center justify-center overflow-hidden border border-slate-700 shadow-inner">
+                        <i class="fa-solid fa-wifi text-xl text-indigo-600"></i>
+                    </div>
+                    <div>
+                        <h1 class="font-bold text-lg leading-tight tracking-wide" id="nav-brand-name">NetManager Pro</h1>
+                        <p class="text-xs text-slate-400" id="nav-company-name">CV. Aryan Prima Nusantara</p>
+                    </div>
+                </div>
+                
+                <div class="flex items-center space-x-3">
+                    <span id="sync-status" class="bg-emerald-900 text-emerald-300 text-[10px] font-bold px-2.5 py-1 rounded-full border border-emerald-700">
+                        <i class="fa-solid fa-cloud-arrow-up mr-1"></i> Cloud Synced
+                    </span>
+                    <span class="hidden md:inline-block bg-slate-800 text-xs text-slate-300 px-3 py-1.5 rounded-full border border-slate-700">
+                        <i class="fa-solid fa-user-shield text-indigo-400 mr-1"></i> <span id="logged-admin-name">Admin</span>
+                    </span>
+                    <button onclick="handleLogout()" class="bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-4 py-2 rounded-lg transition duration-200 flex items-center shadow-sm cursor-pointer">
+                        <i class="fa-solid fa-right-from-bracket mr-1.5"></i> Logout
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content Container -->
+        <main class="flex-grow max-w-7xl w-full mx-auto px-4 py-6">
+            
+            <!-- Navigation Tabs -->
+            <div class="flex overflow-x-auto no-scrollbar gap-2 mb-6 border-b border-gray-200 pb-3">
+                <button onclick="switchTab('dashboard')" id="tab-btn-dashboard" class="tab-btn shrink-0 px-4 py-2 rounded-lg font-semibold text-xs transition bg-indigo-600 text-white shadow-sm flex items-center cursor-pointer">
+                    <i class="fa-solid fa-chart-pie mr-2"></i> Dashboard Tagihan
+                </button>
+                <button onclick="switchTab('customers')" id="tab-btn-customers" class="tab-btn shrink-0 px-4 py-2 rounded-lg font-semibold text-xs transition bg-white text-gray-600 hover:bg-gray-50 border border-gray-200 flex items-center cursor-pointer">
+                    <i class="fa-solid fa-users mr-2"></i> Pelanggan
+                </button>
+                <button onclick="switchTab('packages')" id="tab-btn-packages" class="tab-btn shrink-0 px-4 py-2 rounded-lg font-semibold text-xs transition bg-white text-gray-600 hover:bg-gray-50 border border-gray-200 flex items-center cursor-pointer">
+                    <i class="fa-solid fa-box-archive mr-2"></i> Paket & Tarif
+                </button>
+                <button onclick="switchTab('infrastructure')" id="tab-btn-infrastructure" class="tab-btn shrink-0 px-4 py-2 rounded-lg font-semibold text-xs transition bg-white text-gray-600 hover:bg-gray-50 border border-gray-200 flex items-center cursor-pointer">
+                    <i class="fa-solid fa-network-wired mr-2"></i> Data OLT & ODP
+                </button>
+                <button onclick="switchTab('finance')" id="tab-btn-finance" class="tab-btn shrink-0 px-4 py-2 rounded-lg font-semibold text-xs transition bg-white text-gray-600 hover:bg-gray-50 border border-gray-200 flex items-center cursor-pointer">
+                    <i class="fa-solid fa-wallet mr-2"></i> Laporan Keuangan
+                </button>
+                <button onclick="switchTab('settings')" id="tab-btn-settings" class="tab-btn shrink-0 px-4 py-2 rounded-lg font-semibold text-xs transition bg-white text-gray-600 hover:bg-gray-50 border border-gray-200 flex items-center cursor-pointer">
+                    <i class="fa-solid fa-sliders mr-2"></i> Pengaturan & Logo
+                </button>
+            </div>
+
+            <!-- TAB 1: DASHBOARD -->
+            <section id="tab-dashboard" class="tab-content space-y-6">
+                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 flex items-center justify-between">
+                        <div>
+                            <p class="text-xs font-semibold text-gray-400 uppercase">Total Pelanggan</p>
+                            <h3 id="stat-total-cust" class="text-2xl font-bold text-gray-800 mt-1">0</h3>
+                        </div>
+                        <div class="bg-blue-50 text-blue-600 p-3 rounded-xl"><i class="fa-solid fa-users text-xl"></i></div>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 flex items-center justify-between">
+                        <div>
+                            <p class="text-xs font-semibold text-gray-400 uppercase">Sudah Lunas Bulan Ini</p>
+                            <h3 id="stat-active-cust" class="text-2xl font-bold text-emerald-600 mt-1">0</h3>
+                        </div>
+                        <div class="bg-emerald-50 text-emerald-600 p-3 rounded-xl"><i class="fa-solid fa-circle-check text-xl"></i></div>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 flex items-center justify-between">
+                        <div>
+                            <p class="text-xs font-semibold text-gray-400 uppercase">Belum Bayar / Pending</p>
+                            <h3 id="stat-unpaid-cust" class="text-2xl font-bold text-amber-600 mt-1">0</h3>
+                        </div>
+                        <div class="bg-amber-50 text-amber-600 p-3 rounded-xl"><i class="fa-solid fa-triangle-exclamation text-xl"></i></div>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 flex items-center justify-between">
+                        <div>
+                            <p class="text-xs font-semibold text-gray-400 uppercase">Estimasi Omset/Bulan</p>
+                            <h3 id="stat-revenue" class="text-lg font-bold text-indigo-600 mt-1">Rp 0</h3>
+                        </div>
+                        <div class="bg-indigo-50 text-indigo-600 p-3 rounded-xl"><i class="fa-solid fa-money-bill-wave text-xl"></i></div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-6">
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4 pb-4 border-b border-gray-100">
+                        <div>
+                            <h2 class="text-lg font-bold text-gray-800">Daftar Tagihan & Approval Pembayaran</h2>
+                            <p class="text-xs text-gray-500">Pilih periode bulan tagihan, cetak Kwitansi, dan approve pembayaran.</p>
+                        </div>
+                        
+                        <div class="flex items-center space-x-2 bg-slate-50 p-1.5 rounded-lg border border-slate-200">
+                            <label for="filter-billing-month" class="text-xs font-bold text-slate-600 pl-2 flex items-center">
+                                <i class="fa-solid fa-calendar-days text-indigo-600 mr-1.5"></i> Periode Bulan:
+                            </label>
+                            <input type="month" id="filter-billing-month" onchange="changeBillingMonth()" class="bg-white border border-gray-300 text-xs font-semibold rounded-md p-1.5 outline-none focus:ring-2 focus:ring-indigo-500">
+                            <button onclick="generateMonthlyBills()" class="bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs font-semibold px-2.5 py-1.5 rounded-md transition flex items-center cursor-pointer" title="Reset Periode Bulan Ini">
+                                <i class="fa-solid fa-rotate mr-1"></i> Reset
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 mb-4 flex flex-wrap items-center justify-between gap-3">
+                        <div class="flex items-center space-x-2">
+                            <input type="checkbox" id="select-all-bills" onchange="toggleSelectAllBills(this)" class="w-4 h-4 text-indigo-600 rounded cursor-pointer">
+                            <label for="select-all-bills" class="text-xs font-bold text-gray-700 cursor-pointer">Pilih Semua Pelanggan</label>
+                            <span id="selected-count-badge" class="bg-indigo-100 text-indigo-800 text-[10px] font-bold px-2 py-0.5 rounded-full ml-2">0 Dipilih</span>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            <button onclick="sendBulkWhatsApp()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2 rounded-lg transition shadow-sm flex items-center cursor-pointer">
+                                <i class="fa-brands fa-whatsapp text-sm mr-1.5"></i> Kirim Invoice WA Massal
+                            </button>
+                            <button onclick="approveBulkBills()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-3 py-2 rounded-lg transition shadow-sm flex items-center cursor-pointer">
+                                <i class="fa-solid fa-circle-check mr-1.5"></i> Approve Pembayaran (Dipilih)
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse min-w-[700px]">
+                            <thead>
+                                <tr class="bg-gray-50 text-gray-500 uppercase text-xs tracking-wider border-b border-gray-200">
+                                    <th class="p-3 text-center w-10">Check</th>
+                                    <th class="p-3">Pelanggan & WA</th>
+                                    <th class="p-3">Paket</th>
+                                    <th class="p-3">Bulan Tagihan</th>
+                                    <th class="p-3">Jatuh Tempo</th>
+                                    <th class="p-3">Nominal Tagihan</th>
+                                    <th class="p-3">Status Verifikasi</th>
+                                    <th class="p-3 text-center">Aksi & Kwitansi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="billing-table-body" class="divide-y divide-gray-100 text-xs"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 2: PELANGGAN -->
+            <section id="tab-customers" class="tab-content hidden space-y-6">
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-6">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+                        <div>
+                            <h2 class="text-lg font-bold text-gray-800">Manajemen Data Pelanggan</h2>
+                            <p class="text-xs text-gray-500">Tambah, ubah data teknis, IP Address, dan mapping ODP.</p>
+                        </div>
+                        <button onclick="openCustomerModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-4 py-2.5 rounded-lg transition flex items-center shadow-sm cursor-pointer">
+                            <i class="fa-solid fa-user-plus mr-2"></i> Tambah Pelanggan Baru
+                        </button>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse min-w-[700px]">
+                            <thead>
+                                <tr class="bg-gray-50 text-gray-500 uppercase text-xs tracking-wider border-b border-gray-200">
+                                    <th class="p-3">Pelanggan</th>
+                                    <th class="p-3">WhatsApp</th>
+                                    <th class="p-3">Paket</th>
+                                    <th class="p-3">IP Address</th>
+                                    <th class="p-3">ODP Terhubung</th>
+                                    <th class="p-3">Alamat</th>
+                                    <th class="p-3">Status Layanan</th>
+                                    <th class="p-3 text-center">Aksi Edit</th>
+                                </tr>
+                            </thead>
+                            <tbody id="customer-table-body" class="divide-y divide-gray-100 text-xs"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 3: PAKET -->
+            <section id="tab-packages" class="tab-content hidden space-y-6">
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-6">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+                        <div>
+                            <h2 class="text-lg font-bold text-gray-800">Kelola Paket & Tarif Bandwidth</h2>
+                            <p class="text-xs text-gray-500">Atur pilihan kecepatan broadband dan tarif berlangganan.</p>
+                        </div>
+                        <button onclick="openPackageModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-4 py-2.5 rounded-lg transition flex items-center shadow-sm cursor-pointer">
+                            <i class="fa-solid fa-plus mr-2"></i> Tambah Paket Baru
+                        </button>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6" id="package-cards-container"></div>
+                </div>
+            </section>
+
+            <!-- TAB 4: DATA OLT & ODP -->
+            <section id="tab-infrastructure" class="tab-content hidden space-y-6">
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-6">
+                    <div class="flex justify-between items-center mb-4 border-b border-gray-100 pb-3">
+                        <div>
+                            <h2 class="text-base font-bold text-gray-800 flex items-center"><i class="fa-solid fa-server text-indigo-600 mr-2"></i> Perangkat OLT (Optical Line Terminal)</h2>
+                            <p class="text-xs text-gray-500">Monitoring OLT ZTE / Huawei, IP Management, dan Status Port PON.</p>
+                        </div>
+                        <button onclick="openOltModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-3 py-2 rounded-lg transition cursor-pointer">
+                            <i class="fa-solid fa-plus mr-1"></i> Tambah OLT
+                        </button>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="olt-cards-container"></div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-6">
+                    <div class="flex justify-between items-center mb-4 border-b border-gray-100 pb-3">
+                        <div>
+                            <h2 class="text-base font-bold text-gray-800 flex items-center"><i class="fa-solid fa-network-wired text-indigo-600 mr-2"></i> Data ODP (Optical Distribution Point)</h2>
+                            <p class="text-xs text-gray-500">Kapasitas port ODP, port terpakai, dan nilai redaman optik lapangan.</p>
+                        </div>
+                        <button onclick="openOdpModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-3 py-2 rounded-lg transition cursor-pointer">
+                            <i class="fa-solid fa-plus mr-1"></i> Tambah ODP Baru
+                        </button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse min-w-[600px]">
+                            <thead>
+                                <tr class="bg-gray-50 text-gray-500 uppercase text-xs tracking-wider border-b border-gray-200">
+                                    <th class="p-3">Nama ODP</th>
+                                    <th class="p-3">Lokasi / Area</th>
+                                    <th class="p-3">Kapasitas Port</th>
+                                    <th class="p-3">Port Terpakai</th>
+                                    <th class="p-3">Sisa Port</th>
+                                    <th class="p-3">Redaman</th>
+                                    <th class="p-3 text-center">Aksi Edit</th>
+                                </tr>
+                            </thead>
+                            <tbody id="odp-table-body" class="divide-y divide-gray-100 text-xs"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 5: LAPORAN KEUANGAN -->
+            <section id="tab-finance" class="tab-content hidden space-y-6">
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-6">
+                    <div class="mb-6">
+                        <h2 class="text-lg font-bold text-gray-800">Laporan Keuangan & Kas Pembayaran</h2>
+                        <p class="text-xs text-gray-500">Riwayat transaksi masuk setelah pembayaran di-approve admin.</p>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl">
+                            <p class="text-xs font-semibold text-slate-500 uppercase">Total Pemasukan Approved</p>
+                            <h4 id="fin-income-month" class="text-xl font-bold text-emerald-600 mt-1">Rp 0</h4>
+                        </div>
+                        <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl">
+                            <p class="text-xs font-semibold text-slate-500 uppercase">Metode Transfer Bank</p>
+                            <h4 id="fin-income-tf" class="text-xl font-bold text-blue-600 mt-1">0 Transaksi</h4>
+                        </div>
+                        <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl">
+                            <p class="text-xs font-semibold text-slate-500 uppercase">Metode Tunai / Cash</p>
+                            <h4 id="fin-income-cash" class="text-xl font-bold text-amber-600 mt-1">0 Transaksi</h4>
+                        </div>
+                    </div>
+                   <div class="overflow-x-auto">
+    <table class="w-full text-left border-collapse min-w-[600px]">
+        <thead>
+            <tr class="bg-gray-50 text-gray-500 uppercase text-xs tracking-wider border-b border-gray-200">
+                <th class="p-3">Bulan Tagihan</th>
+                <th class="p-3">Waktu Approved</th>
+                <th class="p-3">Pelanggan</th>
+                <th class="p-3">Nominal Dibayar</th>
+                <th class="p-3">Metode Bayar</th>
+                <th class="p-3">Catatan Admin</th>
+                <th class="p-3 text-center">Aksi</th>
+            </tr>
+        </thead>
+        <tbody id="finance-table-body" class="divide-y divide-gray-100 text-xs">
+            <!-- Data transaksi keuangan akan muncul di sini -->
+        </tbody>
+    </table>
+</div>
+            </section>
+
+            <!-- TAB 6: PENGATURAN & LAYOUT INVOICE/KWITANSI -->
+            <section id="tab-settings" class="tab-content hidden space-y-6">
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-6 space-y-6">
+                    
+                    <!-- PENGATURAN TATA LETAK INVOICE / KWITANSI -->
+                    <div>
+                        <h2 class="text-base font-bold text-gray-800 mb-1 border-b border-gray-100 pb-2 flex items-center">
+                            <i class="fa-solid fa-pen-ruler text-indigo-600 mr-2"></i> Pengaturan Tata Letak Header Kwitansi / Invoice
+                        </h2>
+                        <p class="text-xs text-gray-500 mb-4">Atur posisi logo, judul sistem, dan teks perusahaan sesuai selera cetak Anda.</p>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 mb-4">
+                            <div>
+                                <label class="block text-xs font-semibold uppercase text-gray-600 mb-1">Posisi Logo Perusahaan</label>
+                                <select id="set-logo-align" class="w-full border border-gray-300 rounded-lg p-2 text-xs bg-white outline-none focus:ring-2 focus:ring-indigo-500">
+                                    <option value="right">Pojok Kanan Atas (Default)</option>
+                                    <option value="left">Pojok Kiri Atas</option>
+                                    <option value="center">Tengah Atas</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold uppercase text-gray-600 mb-1">Posisi Judul System Header</label>
+                                <select id="set-header-title-align" class="w-full border border-gray-300 rounded-lg p-2 text-xs bg-white outline-none focus:ring-2 focus:ring-indigo-500">
+                                    <option value="center">Tengah Atas (Default)</option>
+                                    <option value="right">Pojok Kanan Atas</option>
+                                    <option value="left">Pojok Kiri Atas</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold uppercase text-gray-600 mb-1">Teks Header Tengah</label>
+                                <input type="text" id="set-sys-label" placeholder="e-Billing System Bukti Pembayaran" class="w-full border border-gray-300 rounded-lg p-2 text-xs bg-white outline-none focus:ring-2 focus:ring-indigo-500">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- UPLOAD LOGO -->
+                    <div>
+                        <h2 class="text-base font-bold text-gray-800 mb-1 border-b border-gray-100 pb-2 flex items-center">
+                            <i class="fa-solid fa-image text-indigo-600 mr-2"></i> Gambar Logo Perusahaan
+                        </h2>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 items-center">
+                            <div>
+                                <label class="block text-xs font-semibold uppercase text-gray-500 mb-1">Upload File Logo (PNG/JPG)</label>
+                                <input type="file" id="set-logo-file" accept="image/*" onchange="previewLogoUpload(event)" class="w-full border border-gray-300 rounded-lg p-2 text-xs focus:ring-2 focus:ring-indigo-500 outline-none file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+                            </div>
+                            <div class="flex items-center space-x-4">
+                                <div class="text-center">
+                                    <p class="text-[11px] text-gray-500 mb-1">Pratinjau Logo:</p>
+                                    <div id="settings-logo-preview" class="w-16 h-16 bg-gray-50 rounded-xl flex items-center justify-center overflow-hidden shadow border border-gray-200 p-1 mx-auto">
+                                        <i class="fa-solid fa-wifi text-2xl text-indigo-600"></i>
+                                    </div>
+                                </div>
+                                <button type="button" onclick="removeLogo()" class="bg-red-50 hover:bg-red-100 text-red-600 text-xs font-semibold px-3 py-2 rounded-lg transition border border-red-200 cursor-pointer">
+                                    <i class="fa-solid fa-trash mr-1"></i> Hapus Logo
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- FONNTE INTEGRATION -->
+                    <div>
+                        <h2 class="text-base font-bold text-gray-800 mb-1 border-b border-gray-100 pb-2 flex items-center">
+                            <i class="fa-brands fa-whatsapp text-emerald-600 mr-2"></i> Integrasi Fonnte WhatsApp Gateway
+                        </h2>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                            <div>
+                                <label class="block text-xs font-semibold uppercase text-gray-500 mb-1">Fonnte API Token</label>
+                                <div class="flex gap-2">
+                                    <input type="text" id="set-fonnte-token" placeholder="Masukkan Token Fonnte" class="w-full border border-gray-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-indigo-500 outline-none font-mono">
+                                    <button type="button" onclick="testFonnteConnection()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold px-3 py-2 rounded-lg transition whitespace-nowrap cursor-pointer">Tes Token</button>
+                                </div>
+                            </div>
+                            <div class="flex items-center pt-5">
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="set-use-fonnte" class="sr-only peer">
+                                    <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                                    <span class="ml-3 text-xs font-semibold text-gray-700">Aktifkan Kirim Otomatis via Fonnte</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- TEMPLATE WA -->
+                    <div>
+                        <h2 class="text-base font-bold text-gray-800 mb-1 border-b border-gray-100 pb-2 flex items-center">
+                            <i class="fa-brands fa-whatsapp text-emerald-600 mr-2"></i> Template Pesan WhatsApp
+                        </h2>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                            <div>
+                                <label class="block text-xs font-semibold uppercase text-gray-500 mb-1">Template Invoice Tagihan Bulanan</label>
+                                <textarea id="set-wa-template" rows="5" class="w-full border border-gray-300 rounded-lg p-3 text-xs focus:ring-2 focus:ring-indigo-500 outline-none font-mono"></textarea>
+                                <p class="text-[10px] text-gray-500 mt-1">Variabel: <code>{nama}</code>, <code>{paket}</code>, <code>{bulan}</code>, <code>{total}</code>, <code>{tgl_tempo}</code>, <code>{perusahaan}</code></p>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold uppercase text-gray-500 mb-1">Template Selamat Datang (Pelanggan Baru)</label>
+                                <textarea id="set-wa-reg-template" rows="5" class="w-full border border-gray-300 rounded-lg p-3 text-xs focus:ring-2 focus:ring-indigo-500 outline-none font-mono"></textarea>
+                                <p class="text-[10px] text-gray-500 mt-1">Variabel: <code>{nama}</code>, <code>{paket}</code>, <code>{harga}</code>, <code>{ip}</code>, <code>{tgl_tempo}</code>, <code>{perusahaan}</code></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- PROFIL USOHA -->
+                    <div>
+                        <h2 class="text-base font-bold text-gray-800 mb-1 border-b border-gray-100 pb-2 flex items-center">
+                            <i class="fa-solid fa-building text-indigo-600 mr-2"></i> Identitas Perusahaan
+                        </h2>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                            <div>
+                                <label class="block text-xs font-semibold uppercase text-gray-500 mb-1">Nama Admin / Penanggung Jawab</label>
+                                <input type="text" id="set-admin-name" placeholder="Hepra Sukoharjo" class="w-full border border-gray-300 rounded-lg p-2.5 text-xs outline-none focus:ring-2 focus:ring-indigo-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold uppercase text-gray-500 mb-1">Nama Perusahaan / CV</label>
+                                <input type="text" id="set-company-name" placeholder="CV. Aryan Prima Nusantara" class="w-full border border-gray-300 rounded-lg p-2.5 text-xs outline-none focus:ring-2 focus:ring-indigo-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold uppercase text-gray-500 mb-1">Alamat Kantor / Lokasi</label>
+                                <input type="text" id="set-company-address" placeholder="Sukoharjo" class="w-full border border-gray-300 rounded-lg p-2.5 text-xs outline-none focus:ring-2 focus:ring-indigo-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold uppercase text-gray-500 mb-1">Email / Kontak WA Admin</label>
+                                <input type="text" id="set-company-contact" placeholder="heprasukoharjo@gmail.com / 08562824286" class="w-full border border-gray-300 rounded-lg p-2.5 text-xs outline-none focus:ring-2 focus:ring-indigo-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold uppercase text-gray-500 mb-1">Nama Brand Aplikasi</label>
+                                <input type="text" id="set-brand-name" class="w-full border border-gray-300 rounded-lg p-2.5 text-xs outline-none focus:ring-2 focus:ring-indigo-500">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="pt-2">
+                        <button onclick="saveSystemSettings()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs px-5 py-2.5 rounded-lg transition shadow-sm cursor-pointer">
+                            <i class="fa-solid fa-floppy-disk mr-1.5"></i> Simpan Semua Pengaturan
+                        </button>
+                    </div>
+
+                    <hr class="border-gray-200">
+
+                    <!-- BACKUP & RESTORE -->
+                    <div>
+                        <h2 class="text-base font-bold text-gray-800 mb-1 flex items-center">
+                            <i class="fa-solid fa-database text-indigo-600 mr-2"></i> Cadangan Data (Backup & Restore)
+                        </h2>
+                        <p class="text-xs text-gray-500 mb-4">Export seluruh database aplikasi ke file JSON atau Import kembali kapan saja.</p>
+                        <div class="flex flex-wrap gap-3">
+                            <button onclick="exportDataJSON()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2.5 rounded-lg transition flex items-center shadow-sm cursor-pointer">
+                                <i class="fa-solid fa-download mr-2"></i> Backup Data (Export JSON)
+                            </button>
+                            <label class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-2.5 rounded-lg transition flex items-center cursor-pointer shadow-sm">
+                                <i class="fa-solid fa-upload mr-2"></i> Restore Data (Import JSON)
+                                <input type="file" id="import-file" accept=".json" onchange="importDataJSON(event)" class="hidden">
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+
+        <!-- MODAL 1: PELANGGAN (TAMBAH / EDIT) -->
+        <div id="modal-customer" class="fixed inset-0 bg-black/50 hidden items-center justify-center p-4 z-50">
+            <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-gray-100">
+                <div class="flex justify-between items-center mb-4 border-b border-gray-100 pb-2">
+                    <h3 class="font-bold text-base text-gray-800" id="modal-cust-title">Tambah Pelanggan Baru</h3>
+                    <button onclick="closeCustomerModal()" class="text-gray-400 hover:text-gray-600 cursor-pointer"><i class="fa-solid fa-xmark text-lg"></i></button>
+                </div>
+                <form onsubmit="saveCustomerData(event)" class="space-y-3">
+                    <input type="hidden" id="cust-id">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Nama Pelanggan</label>
+                        <input type="text" id="cust-name" required class="w-full border border-gray-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Nomor WhatsApp (Format: 628...)</label>
+                        <input type="text" id="cust-phone" required placeholder="628123456789" class="w-full border border-gray-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Alamat Lengkap Pelanggan</label>
+                        <input type="text" id="cust-address" required placeholder="Bugo RT 02/RW 05, Gentan, Bendosari, Sukoharjo" class="w-full border border-gray-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Pilihan Paket</label>
+                            <select id="cust-package" class="w-full border border-gray-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-indigo-500 outline-none"></select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">IP Address</label>
+                            <input type="text" id="cust-ip" placeholder="192.168.10.x" class="w-full border border-gray-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-indigo-500 outline-none">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">ODP Terhubung</label>
+                            <select id="cust-odp" class="w-full border border-gray-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-indigo-500 outline-none"></select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Tgl Jatuh Tempo</label>
+                            <input type="number" id="cust-due" min="1" max="31" value="10" required class="w-full border border-gray-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-indigo-500 outline-none">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Status Layanan</label>
+                        <select id="cust-status" class="w-full border border-gray-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-indigo-500 outline-none">
+                            <option value="Aktif">Aktif</option>
+                            <option value="Isolir">Isolir / Nonaktif</option>
+                        </select>
+                    </div>
+                    <div class="pt-3">
+                        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs py-2.5 rounded-lg transition shadow-sm cursor-pointer">Simpan Data Pelanggan</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- MODAL 2: ODP (TAMBAH / EDIT) -->
+        <div id="modal-odp" class="fixed inset-0 bg-black/50 hidden items-center justify-center p-4 z-50">
+            <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-gray-100">
+                <div class="flex justify-between items-center mb-4 border-b border-gray-100 pb-2">
+                    <h3 class="font-bold text-base text-gray-800" id="modal-odp-title">Tambah Data ODP</h3>
+                    <button onclick="closeOdpModal()" class="text-gray-400 hover:text-gray-600 cursor-pointer"><i class="fa-solid fa-xmark text-lg"></i></button>
+                </div>
+                <form onsubmit="saveOdpData(event)" class="space-y-3">
+                    <input type="hidden" id="odp-id">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Nama / Kode ODP</label>
+                        <input type="text" id="odp-name" required placeholder="ODP-BDS-01" class="w-full border border-gray-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Lokasi / Area Lapangan</label>
+                        <input type="text" id="odp-location" required placeholder="Perum Griya Asri" class="w-full border border-gray-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Kapasitas Port</label>
+                            <select id="odp-capacity" class="w-full border border-gray-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-indigo-500 outline-none">
+                                <option value="8">8 Port</option>
+                                <option value="16">16 Port</option>
+                                <option value="24">24 Port</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Redaman Optik</label>
+                            <input type="text" id="odp-status" value="Normal (-18 dBm)" class="w-full border border-gray-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-indigo-500 outline-none">
+                        </div>
+                    </div>
+                    <div class="pt-3">
+                        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs py-2.5 rounded-lg transition shadow-sm cursor-pointer">Simpan Data ODP</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- MODAL 3: OLT (TAMBAH / EDIT) -->
+        <div id="modal-olt" class="fixed inset-0 bg-black/50 hidden items-center justify-center p-4 z-50">
+            <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-gray-100">
+                <div class="flex justify-between items-center mb-4 border-b border-gray-100 pb-2">
+                    <h3 class="font-bold text-base text-gray-800" id="modal-olt-title">Tambah Data OLT</h3>
+                    <button onclick="closeOltModal()" class="text-gray-400 hover:text-gray-600 cursor-pointer"><i class="fa-solid fa-xmark text-lg"></i></button>
+                </div>
+                <form onsubmit="saveOltData(event)" class="space-y-3">
+                    <input type="hidden" id="olt-id">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Nama Perangkat OLT</label>
+                        <input type="text" id="olt-name" required placeholder="OLT ZTE C320 Server Pusat" class="w-full border border-gray-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">IP Management OLT</label>
+                        <input type="text" id="olt-ip" required placeholder="192.168.100.1" class="w-full border border-gray-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-indigo-500 outline-none font-mono">
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Model Hardware</label>
+                            <input type="text" id="olt-model" value="ZTE ZXA10 C320" class="w-full border border-gray-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-indigo-500 outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Status Device</label>
+                            <select id="olt-status" class="w-full border border-gray-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-indigo-500 outline-none">
+                                <option value="Online">Online</option>
+                                <option value="Offline">Offline</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="pt-3">
+                        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs py-2.5 rounded-lg transition shadow-sm cursor-pointer">Simpan Data OLT</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- MODAL 4: PAKET (TAMBAH / EDIT) -->
+        <div id="modal-package" class="fixed inset-0 bg-black/50 hidden items-center justify-center p-4 z-50">
+            <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-gray-100">
+                <div class="flex justify-between items-center mb-4 border-b border-gray-100 pb-2">
+                    <h3 class="font-bold text-base text-gray-800" id="modal-pkg-title">Tambah Paket Internet</h3>
+                    <button onclick="closePackageModal()" class="text-gray-400 hover:text-gray-600 cursor-pointer"><i class="fa-solid fa-xmark text-lg"></i></button>
+                </div>
+                <form onsubmit="savePackageData(event)" class="space-y-3">
+                    <input type="hidden" id="pkg-id">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Nama Paket</label>
+                        <input type="text" id="pkg-name" required placeholder="Home 20 Mbps" class="w-full border border-gray-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Kecepatan (Bandwidth)</label>
+                        <input type="text" id="pkg-speed" required placeholder="20 Mbps" class="w-full border border-gray-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Harga Bulanan (Rp)</label>
+                        <input type="number" id="pkg-price" required placeholder="150000" class="w-full border border-gray-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Deskripsi Paket</label>
+                        <input type="text" id="pkg-desc" placeholder="Cocok untuk browsing & streaming" class="w-full border border-gray-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+                    <div class="pt-3">
+                        <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs py-2.5 rounded-lg transition shadow-sm cursor-pointer">Simpan Paket</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- MODAL 5: SUBMIT / KONFIRMASI PEMBAYARAN PELANGGAN -->
+        <div id="modal-pay" class="fixed inset-0 bg-black/50 hidden items-center justify-center p-4 z-50">
+            <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-gray-100">
+                <div class="flex justify-between items-center mb-4 border-b border-gray-100 pb-2">
+                    <h3 class="font-bold text-base text-gray-800">Catat Pembayaran Pelanggan</h3>
+                    <button onclick="closePayModal()" class="text-gray-400 hover:text-gray-600 cursor-pointer"><i class="fa-solid fa-xmark text-lg"></i></button>
+                </div>
+                <form onsubmit="submitCustomerPayment(event)" class="space-y-3">
+                    <input type="hidden" id="pay-cust-id">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Nama Pelanggan</label>
+                        <input type="text" id="pay-cust-name" disabled class="w-full bg-gray-50 border border-gray-300 rounded-lg p-2.5 text-xs text-gray-600">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Bulan Tagihan</label>
+                        <input type="text" id="pay-cust-month-display" disabled class="w-full bg-gray-50 border border-gray-300 rounded-lg p-2.5 text-xs font-bold text-slate-700">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Nominal Tagihan</label>
+                        <input type="text" id="pay-cust-nominal" disabled class="w-full bg-gray-50 border border-gray-300 rounded-lg p-2.5 text-xs font-bold text-indigo-600">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Metode Pembayaran</label>
+                        <select id="pay-method" class="w-full border border-gray-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-indigo-500 outline-none">
+                            <option value="Tunai">Tunai</option>
+                            <option value="Transfer Bank">Transfer Bank</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Catatan / Bukti Bayar</label>
+                        <input type="text" id="pay-note" placeholder="Contoh: Dibayar lunas / No Ref Transfer" class="w-full border border-gray-300 rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+                    <div class="pt-3">
+                        <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs py-2.5 rounded-lg transition shadow-sm cursor-pointer">Kirim Konfirmasi Pembayaran</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- CETAK KWITANSI / BUKTI PEMBAYARAN AREA -->
+    <div id="print-area" class="hidden">
+        <div style="width: 210mm; min-height: 140mm; margin: 0 auto; background: #fff; padding: 12mm 15mm; font-family: Arial, sans-serif; font-size: 12px; color: #000; box-sizing: border-box;">
+            
+            <!-- DYNAMIC HEADER LAYOUT -->
+            <div id="pr-dynamic-header" style="margin-bottom: 15px; position: relative;">
+                
+                <!-- Tanggal Pojok Kiri Atas -->
+                <div style="padding-top: 18px; font-size: 11px; color: #333;" id="pr-top-date">
+                    29/10/26, 12:31 AM
+                </div>
+
+                <!-- Title Header Center -->
+                <div id="pr-title-box" style="text-align: center; margin-top: -16px; font-size: 11px; font-weight: bold; color: #333;">
+                    e-Billing System Bukti Pembayaran
+                </div>
+
+                <!-- Logo Perusahaan Right -->
+                <div id="pr-logo-box" style="position: absolute; right: 0; top: 0;">
+                    <i class="fa-solid fa-wifi text-2xl text-indigo-600"></i>
+                </div>
+
+            </div>
+
+            <!-- Judul Kwitansi -->
+            <div style="text-align: center; border-top: 1px solid #333; border-bottom: 1px solid #333; padding: 6px 0; font-weight: bold; font-size: 15px; letter-spacing: 1px; margin-bottom: 20px;">
+                BUKTI PEMBAYARAN
+            </div>
+
+            <!-- Info Pelanggan & Transaksi -->
+            <div style="display: flex; justify-content: space-between; margin-bottom: 20px; line-height: 1.6;">
+                <div>
+                    <div>ID Pelanggan : <span id="pr-cust-id">2610110534</span></div>
+                    <div>Nama : <strong id="pr-cust-name">Alief allan aljufrie</strong></div>
+                    <div>Tlp : <span id="pr-cust-phone">6281649605518</span></div>
+                    <div>Alamat : <span id="pr-cust-addr">Bugo RT 02/RW 05, Gentan, Bendosari, Sukoharjo</span></div>
+                    <div>Email : <span id="pr-cust-email"></span></div>
+                </div>
+                <div style="text-align: right;">
+                    <div>Waktu : <span id="pr-time">22-10-2026 05:34 PM</span></div>
+                    <div>Account : <span id="pr-account">5622</span></div>
+                    <div>No Bukti : <span id="pr-nobukti">261018818</span></div>
+                    <div>Noted : <span id="pr-noted">Pembayaran Oktober 2026</span></div>
+                </div>
+            </div>
+
+            <!-- Tabel Rincian -->
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px;">
+                <thead>
+                    <tr style="border-top: 1px solid #000; border-bottom: 1px solid #000; text-align: left; font-size: 11px;">
+                        <th style="padding: 6px; width: 40px;">NO</th>
+                        <th style="padding: 6px;">NAMA PEMBAYARAN</th>
+                        <th style="padding: 6px; text-align: right;">HARGA</th>
+                        <th style="padding: 6px; text-align: right;">JUMLAH BAYAR</th>
+                        <th style="padding: 6px; text-align: center; width: 50px;">QTY</th>
+                        <th style="padding: 6px; text-align: right;">TOTAL</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr style="border-bottom: 1px solid #ddd;">
+                        <td style="padding: 8px;">1</td>
+                        <td style="padding: 8px;" id="pr-item-name">Internet Fiber Paket Ekonomis, October 2026</td>
+                        <td style="padding: 8px; text-align: right;" id="pr-item-price">165,000</td>
+                        <td style="padding: 8px; text-align: right;" id="pr-item-pay">165,000</td>
+                        <td style="padding: 8px; text-align: center;">1</td>
+                        <td style="padding: 8px; text-align: right; font-weight: bold;" id="pr-item-total">165,000</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <!-- Grand Total -->
+            <div style="display: flex; justify-content: flex-end; border-bottom: 1px solid #000; padding-bottom: 10px; margin-bottom: 20px; font-size: 13px;">
+                <div style="width: 250px; display: flex; justify-content: space-between; font-weight: bold;">
+                    <span>GRAND TOTAL</span>
+                    <span id="pr-grand-total">165,000</span>
+                </div>
+            </div>
+
+            <!-- Terbilang & Metode Pembayaran -->
+            <div style="margin-bottom: 30px; line-height: 1.6;">
+                <div>Terbilang : <span id="pr-terbilang" style="font-style: italic; font-weight: bold;">Seratus Enam Puluh Lima Ribu Rupiah</span></div>
+                <div>Metode Pembayaran : <span id="pr-method" style="font-weight: bold;">Tunai</span></div>
+            </div>
+
+            <!-- Status Lunas & Footer -->
+            <div style="text-align: center; margin-top: 40px;">
+                <div style="font-size: 18px; font-weight: bold; color: #16a34a; letter-spacing: 2px; margin-bottom: 8px;" id="pr-status-text">LUNAS</div>
+                <div style="font-size: 11px; color: #555;" id="pr-footer-msg">Terima Kasih Sudah Melakukan Pembayaran Tepat Waktu.</div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- LOGIKA JAVASCRIPT & SUPABASE SYNC -->
+    <script>
+        // Konfigurasi Supabase
+        const SUPABASE_URL = "https://nnyjmoyihcuonmdgbxqp.supabase.co";
+        const SUPABASE_KEY = "sb_publishable_B6eEBJ0zRaZn3oBGl9KBRA_TgWQrFAt";
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        const getCurrentMonthCode = () => {
+            const d = new Date();
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            return `${y}-${m}`;
+        };
+
+        const formatMonthName = (monthCode) => {
+            if(!monthCode) return "";
+            const [y, m] = monthCode.split('-');
+            const months = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+            return `${months[parseInt(m) - 1]} ${y}`;
+        };
+
+        function terbilang(nilai) {
+            nilai = Math.abs(nilai);
+            const angka = ["", "Satu", "Dua", "Tiga", "Empat", "Lima", "Enam", "Tujuh", "Delapan", "Sembilan", "Sepuluh", "Sebelas"];
+            let res = "";
+            if (nilai < 12) {
+                res = " " + angka[nilai];
+            } else if (nilai < 20) {
+                res = terbilang(nilai - 10) + " Belas";
+            } else if (nilai < 100) {
+                res = terbilang(Math.floor(nilai / 10)) + " Puluh" + terbilang(nilai % 10);
+            } else if (nilai < 200) {
+                res = " Seratus" + terbilang(nilai - 100);
+            } else if (nilai < 1000) {
+                res = terbilang(Math.floor(nilai / 100)) + " Ratus" + terbilang(nilai % 100);
+            } else if (nilai < 2000) {
+                res = " Seribu" + terbilang(nilai - 1000);
+            } else if (nilai < 1000000) {
+                res = terbilang(Math.floor(nilai / 1000)) + " Ribu" + terbilang(nilai % 1000);
+            } else if (nilai < 1000000000) {
+                res = terbilang(Math.floor(nilai / 1000000)) + " Juta" + terbilang(nilai % 1000000);
+            }
+            return res.trim();
+        }
+
+        let currentBillingMonth = getCurrentMonthCode();
+
+        let db = {
+            settings: {
+                brandName: "NetManager Pro",
+                companyName: "CV. Aryan Prima Nusantara",
+                adminName: "Hepra Sukoharjo",
+                companyAddress: "Sukoharjo",
+                companyContact: "heprasukoharjo@gmail.com",
+                companyPhone: "08562824286",
+                systemLabel: "e-Billing System Bukti Pembayaran",
+                logoAlign: "right",
+                titleAlign: "center",
+                adminUser: "admin",
+                adminPass: "admin123",
+                logoBase64: "",
+                fonnteToken: "",
+                useFonnte: false,
+                waTemplate: "Halo Kak *{nama}*,\n\nBerikut rincian tagihan internet *{paket}* periode *{bulan}*:\n- Total Tagihan: *Rp {total}*\n- Jatuh Tempo: Tgl {tgl_tempo}\n\nSilahkan lakukan pembayaran langsung ke kantor atau kordinasi dengan admin. Terima kasih!\n_{perusahaan}_",
+                waRegTemplate: "Halo Kak *{nama}*,\n\nSelamat Bergabung di *{perusahaan}*!\nLayanan internet Anda telah aktif dengan detail:\n- Paket: *{paket}* (Rp {harga}/bln)\n- IP Address: `{ip}`\n- Jatuh Tempo Tgl: {tgl_tempo}\n\nTerima kasih telah mempercayakan koneksi internet Anda kepada kami!"
+            },
+            customers: [
+                { id: 1, name: "Alief allan aljufrie", phone: "6281649605518", address: "Bugo RT 02/RW 05, Gentan, Bendosari, Sukoharjo", package: "Home 20 Mbps", ip: "192.168.10.2", odp: "ODP-BDS-01", dueDay: 10, status: "Aktif", bills: {} }
+            ],
+            packages: [
+                { id: 1, name: "Home 20 Mbps", speed: "20 Mbps", price: 165000, desc: "Paket Internet Fiber Ekonomis" },
+                { id: 2, name: "Home 50 Mbps", speed: "50 Mbps", price: 250000, desc: "Cocok untuk keluarga & gaming" }
+            ],
+            olts: [
+                { id: 1, name: "OLT ZTE C320 Server Pusat", ip: "192.168.100.1", model: "ZTE ZXA10 C320", status: "Online" }
+            ],
+            odps: [
+                { id: 1, name: "ODP-BDS-01", location: "Perumahan Griya Asri", capacity: 8, status: "Normal (-18 dBm)" }
+            ],
+            finance: []
+        };
+
+        window.onload = async function() {
+            document.getElementById("filter-billing-month").value = currentBillingMonth;
+            await loadFromCloud();
+            
+            if (sessionStorage.getItem("netmanager_logged") === "true") {
+                document.getElementById("login-screen").classList.add("hidden");
+                document.getElementById("app-wrapper").classList.remove("hidden");
+                renderAllData();
+            }
+        };
+
+        // Fungsi Ambil Data dari Supabase Cloud
+        async function loadFromCloud() {
+            try {
+                const { data, error } = await supabaseClient
+                    .from('app_data')
+                    .select('payload')
+                    .eq('id', 'main')
+                    .single();
+
+                if (data && data.payload) {
+                    db = data.payload;
+                } else {
+                    // Jika belum ada data di cloud, buat baris pertama
+                    await saveToCloud();
+                }
+            } catch(err) {
+                console.error("Gagal memuat dari cloud, menggunakan local fallback", err);
+                loadLocalStorage();
+            }
+            renderAllData();
+        }
+
+        // Fungsi Simpan Data ke Supabase Cloud
+        async function saveToCloud() {
+            try {
+                document.getElementById("sync-status").innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1"></i> Syncing...`;
+                const { error } = await supabaseClient
+                    .from('app_data')
+                    .upsert({ id: 'main', payload: db });
+
+                if (error) throw error;
+                document.getElementById("sync-status").innerHTML = `<i class="fa-solid fa-cloud-arrow-up mr-1"></i> Cloud Synced`;
+            } catch(err) {
+                console.error("Gagal menyimpan ke cloud", err);
+                document.getElementById("sync-status").innerHTML = `<i class="fa-solid fa-triangle-exclamation mr-1 text-amber-400"></i> Sync Error`;
+                saveLocalStorage(); // Backup ke local jika gagal
+            }
+        }
+
+        function loadLocalStorage() {
+            const saved = localStorage.getItem("netmanager_db_supabase");
+            if (saved) {
+                try { db = JSON.parse(saved); } catch(e) {}
+            }
+        }
+
+        async function saveLocalStorage() {
+            localStorage.setItem("netmanager_db_supabase", JSON.stringify(db));
+            await saveToCloud();
+        }
+
+        function handleLogin(e) {
+            e.preventDefault();
+            const u = document.getElementById("login-user").value;
+            const p = document.getElementById("login-pass").value;
+            if (u === db.settings.adminUser && p === db.settings.adminPass) {
+                sessionStorage.setItem("netmanager_logged", "true");
+                document.getElementById("login-screen").classList.add("hidden");
+                document.getElementById("app-wrapper").classList.remove("hidden");
+                renderAllData();
+            } else {
+                alert("Username atau Password Salah!");
+            }
+        }
+
+        function handleLogout() {
+            sessionStorage.removeItem("netmanager_logged");
+            document.getElementById("app-wrapper").classList.add("hidden");
+            document.getElementById("login-screen").classList.remove("hidden");
+        }
+
+        function resetLoginDefault() {
+            db.settings.adminUser = "admin";
+            db.settings.adminPass = "admin123";
+            saveLocalStorage();
+            alert("Akses login berhasil di-reset ke: admin / admin123");
+        }
+
+        function switchTab(tabId) {
+            document.querySelectorAll(".tab-content").forEach(el => el.classList.add("hidden"));
+            document.querySelectorAll(".tab-btn").forEach(el => {
+                el.classList.remove("bg-indigo-600", "text-white");
+                el.classList.add("bg-white", "text-gray-600");
+            });
+
+            document.getElementById("tab-" + tabId).classList.remove("hidden");
+            const btn = document.getElementById("tab-btn-" + tabId);
+            if(btn) {
+                btn.classList.remove("bg-white", "text-gray-600");
+                btn.classList.add("bg-indigo-600", "text-white");
+            }
+            renderAllData();
+        }
+
+        function changeBillingMonth() {
+            const val = document.getElementById("filter-billing-month").value;
+            if(val) {
+                currentBillingMonth = val;
+                renderAllData();
+            }
+        }
+
+        function renderAllData() {
+            renderDashboardStats();
+            renderBillingTable();
+            renderCustomerTable();
+            renderPackageCards();
+            renderInfrastructure();
+            renderFinanceTable();
+            renderSettingsForm();
+            renderLogoUI();
+        }
+
+        function renderDashboardStats() {
+            document.getElementById("stat-total-cust").innerText = db.customers.length;
+            
+            let paidCount = 0;
+            let unpaidCount = 0;
+
+            db.customers.forEach(c => {
+                const b = (c.bills && c.bills[currentBillingMonth]) ? c.bills[currentBillingMonth].paidStatus : "Belum Bayar";
+                if(b === "Lunas") paidCount++;
+                else unpaidCount++;
+            });
+
+            document.getElementById("stat-active-cust").innerText = paidCount;
+            document.getElementById("stat-unpaid-cust").innerText = unpaidCount;
+            
+            const rev = db.customers.reduce((sum, c) => {
+                const pkg = db.packages.find(p => p.name === c.package);
+                return sum + (pkg ? pkg.price : 0);
+            }, 0);
+            document.getElementById("stat-revenue").innerText = "Rp " + Math.round(rev).toLocaleString('id-ID');
+        }
+
+        function renderBillingTable() {
+            let html = "";
+            const monthText = formatMonthName(currentBillingMonth);
+
+            db.customers.forEach(c => {
+                if(!c.bills) c.bills = {};
+                const billData = c.bills[currentBillingMonth] || { paidStatus: "Belum Bayar", paymentInfo: null };
+
+                const pkg = db.packages.find(p => p.name === c.package);
+                const total = pkg ? pkg.price : 0;
+
+                let statusBadge = "";
+                if(billData.paidStatus === "Lunas") {
+                    statusBadge = '<span class="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2.5 py-1 rounded-full">LUNAS</span>';
+                } else if(billData.paidStatus === "Menunggu Approval") {
+                    statusBadge = '<span class="bg-amber-100 text-amber-800 text-[10px] font-bold px-2.5 py-1 rounded-full animate-pulse">PENDING APPROVAL</span>';
+                } else {
+                    statusBadge = '<span class="bg-red-100 text-red-800 text-[10px] font-bold px-2.5 py-1 rounded-full">BELUM BAYAR</span>';
+                }
+
+                html += `<tr class="hover:bg-gray-50 border-b border-gray-100">
+                    <td class="p-3 text-center"><input type="checkbox" class="bill-checkbox w-4 h-4 text-indigo-600 rounded cursor-pointer" data-id="${c.id}"></td>
+                    <td class="p-3">
+                        <div class="font-bold text-gray-800">${c.name}</div>
+                        <div class="text-[11px] text-gray-500"><i class="fa-brands fa-whatsapp text-emerald-600 mr-1"></i>${c.phone}</div>
+                    </td>
+                    <td class="p-3 text-gray-700 font-medium">${c.package}</td>
+                    <td class="p-3 font-semibold text-slate-700">${monthText}</td>
+                    <td class="p-3 text-gray-600">Tgl ${c.dueDay}</td>
+                    <td class="p-3 font-bold text-indigo-600">Rp ${total.toLocaleString('id-ID')}</td>
+                    <td class="p-3">${statusBadge}</td>
+                    <td class="p-3 text-center space-x-1">
+                        <button onclick="sendSingleWhatsApp(${c.id})" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-600 p-1.5 rounded-lg cursor-pointer" title="Kirim WA Tagihan"><i class="fa-brands fa-whatsapp"></i></button>
+                        ${billData.paidStatus !== 'Lunas' ? `<button onclick="openPayModal(${c.id})" class="bg-amber-50 hover:bg-amber-100 text-amber-600 px-2.5 py-1 rounded-lg cursor-pointer font-semibold text-[11px]" title="Catat Bayar"><i class="fa-solid fa-file-invoice-dollar mr-1"></i>Bayar</button>` : ''}
+                        ${billData.paidStatus === 'Menunggu Approval' ? `<button onclick="approvePayment(${c.id})" class="bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 rounded-lg cursor-pointer font-semibold text-[11px]" title="Approve Pembayaran"><i class="fa-solid fa-check mr-1"></i>Approve</button>` : ''}
+                        <button onclick="printKwitansi(${c.id})" class="bg-blue-50 hover:bg-blue-100 text-blue-600 px-2.5 py-1 rounded-lg cursor-pointer font-semibold text-[11px]" title="Cetak Kwitansi"><i class="fa-solid fa-print mr-1"></i>Kwitansi</button>
+                    </td>
+                </tr>`;
+            });
+            document.getElementById("billing-table-body").innerHTML = html;
+        }
+
+       function renderCustomerTable() {
+            let html = "";
+            db.customers.forEach(c => {
+                html += `<tr class="hover:bg-gray-50 border-b border-gray-100">
+                    <td class="p-3 font-bold text-gray-800">${c.name}</td>
+                    <td class="p-3 text-gray-600">${c.phone}</td>
+                    <td class="p-3 text-gray-700">${c.package}</td>
+                    <td class="p-3 font-mono text-indigo-600">${c.ip}</td>
+                    <td class="p-3 text-gray-600">${c.odp || '-'}</td>
+                    <td class="p-3 text-gray-500">${c.address || '-'}</td>
+                    <td class="p-3"><span class="${c.status==='Aktif'?'bg-emerald-50 text-emerald-700':'bg-red-50 text-red-700'} text-[10px] font-bold px-2 py-0.5 rounded-md">${c.status}</span></td>
+                    <td class="p-3 text-center space-x-1">
+                        <button onclick="sendWelcomeWhatsApp(${c.id})" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-600 px-2 py-1 rounded-lg cursor-pointer font-semibold" title="Kirim WA Selamat Datang"><i class="fa-brands fa-whatsapp mr-1"></i>WA Baru</button>
+                        <button onclick="editCustomer(${c.id})" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-2 py-1 rounded-lg cursor-pointer font-semibold"><i class="fa-solid fa-pen mr-1"></i>Edit</button>
+                        <button onclick="deleteCustomer(${c.id})" class="bg-red-50 hover:bg-red-100 text-red-600 px-2 py-1 rounded-lg cursor-pointer"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                </tr>`;
+            });
+            document.getElementById("customer-table-body").innerHTML = html;
+        }
+
+        function renderPackageCards() {
+            let html = "";
+            db.packages.forEach(p => {
+                html += `<div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-center mb-2">
+                            <h4 class="font-bold text-gray-800 text-base">${p.name}</h4>
+                            <span class="bg-indigo-50 text-indigo-700 text-xs font-bold px-2 py-1 rounded-md">${p.speed}</span>
+                        </div>
+                        <p class="text-xs text-gray-500 mb-4">${p.desc}</p>
+                    </div>
+                    <div class="pt-3 border-t border-gray-100 flex justify-between items-center">
+                        <span class="text-base font-bold text-indigo-600">Rp ${p.price.toLocaleString('id-ID')}/bln</span>
+                        <div class="space-x-1">
+                            <button onclick="editPackage(${p.id})" class="text-xs text-indigo-600 hover:text-indigo-800 cursor-pointer p-1"><i class="fa-solid fa-pen"></i></button>
+                            <button onclick="deletePackage(${p.id})" class="text-xs text-red-500 hover:text-red-700 cursor-pointer p-1"><i class="fa-solid fa-trash"></i></button>
+                        </div>
+                    </div>
+                </div>`;
+            });
+            document.getElementById("package-cards-container").innerHTML = html;
+        }
+
+        function renderInfrastructure() {
+            let oltHtml = "";
+            db.olts.forEach(o => {
+                oltHtml += `<div class="bg-slate-50 border border-slate-200 p-4 rounded-xl flex justify-between items-center">
+                    <div>
+                        <div class="flex items-center space-x-2">
+                            <h4 class="font-bold text-gray-800 text-sm">${o.name}</h4>
+                            <span class="${o.status==='Online'?'bg-emerald-100 text-emerald-800':'bg-red-100 text-red-800'} text-[10px] font-bold px-2 py-0.5 rounded-full">${o.status}</span>
+                        </div>
+                        <p class="text-xs text-gray-500 font-mono mt-1">IP: ${o.ip} | Model: ${o.model}</p>
+                    </div>
+                    <div class="space-x-1">
+                        <button onclick="editOlt(${o.id})" class="bg-indigo-50 text-indigo-600 p-1.5 rounded-lg cursor-pointer"><i class="fa-solid fa-pen"></i></button>
+                        <button onclick="deleteOlt(${o.id})" class="bg-red-50 text-red-600 p-1.5 rounded-lg cursor-pointer"><i class="fa-solid fa-trash"></i></button>
+                    </div>
+                </div>`;
+            });
+            document.getElementById("olt-cards-container").innerHTML = oltHtml;
+
+            let odpHtml = "";
+            db.odps.forEach(odp => {
+                const usedCount = db.customers.filter(c => c.odp === odp.name).length;
+                const sisa = odp.capacity - usedCount;
+                odpHtml += `<tr class="hover:bg-gray-50 border-b border-gray-100">
+                    <td class="p-3 font-bold text-gray-800">${odp.name}</td>
+                    <td class="p-3 text-gray-600">${odp.location}</td>
+                    <td class="p-3 text-gray-700">${odp.capacity} Port</td>
+                    <td class="p-3 font-semibold text-amber-600">${usedCount} Port</td>
+                    <td class="p-3 font-semibold text-emerald-600">${sisa} Port</td>
+                    <td class="p-3 text-gray-500">${odp.status}</td>
+                    <td class="p-3 text-center space-x-1">
+                        <button onclick="editOdp(${odp.id})" class="bg-indigo-50 text-indigo-600 px-2 py-1 rounded-lg cursor-pointer font-semibold"><i class="fa-solid fa-pen mr-1"></i>Edit</button>
+                        <button onclick="deleteOdp(${odp.id})" class="bg-red-50 text-red-600 px-2 py-1 rounded-lg cursor-pointer"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                </tr>`;
+            });
+            document.getElementById("odp-table-body").innerHTML = odpHtml;
+        }
+
+        function renderFinanceTable() {
+            let totalMonth = db.finance.reduce((s, f) => s + f.amount, 0);
+            document.getElementById("fin-income-month").innerText = "Rp " + Math.round(totalMonth).toLocaleString('id-ID');
+            document.getElementById("fin-income-tf").innerText = db.finance.filter(f => f.method === "Transfer Bank").length + " Transaksi";
+            document.getElementById("fin-income-cash").innerText = db.finance.filter(f => f.method === "Tunai").length + " Transaksi";
+
+           let html = "";
+    db.finance.forEach((f, index) => {
+        html += `<tr class="hover:bg-gray-50 border-b border-gray-100">
+            <td class="p-3 font-bold text-slate-700">${formatMonthName(f.month)}</td>
+            <td class="p-3 text-gray-600">${f.time}</td>
+            <td class="p-3 font-bold text-gray-800">${f.custName}</td>
+            <td class="p-3 font-semibold text-emerald-600">Rp ${Math.round(f.amount).toLocaleString('id-ID')}</td>
+            <td class="p-3 text-gray-600">${f.method}</td>
+            <td class="p-3 text-gray-500">${f.note || '-'}</td>
+            <td class="p-3 text-center">
+                <button onclick="deleteFinanceRecord(${index})" class="bg-red-50 text-red-600 px-2 py-1 rounded-lg cursor-pointer font-semibold"><i class="fa-solid fa-trash"></i></button>
+            </td>
+        </tr>`;
+    });
+    document.getElementById("finance-table-body").innerHTML = html;
+        }
+function deleteFinanceRecord(index) {
+    if (confirm("Apakah Anda yakin ingin menghapus riwayat transaksi ini?")) {
+        db.finance.splice(index, 1);
+        saveLocalStorage();
+        renderAllData();
+    }
+}
+        function renderSettingsForm() {
+            document.getElementById("set-brand-name").value = db.settings.brandName;
+            document.getElementById("set-company-name").value = db.settings.companyName;
+            document.getElementById("set-admin-name").value = db.settings.adminName || "";
+            document.getElementById("set-company-address").value = db.settings.companyAddress || "";
+            document.getElementById("set-company-contact").value = db.settings.companyContact || "";
+            document.getElementById("set-sys-label").value = db.settings.systemLabel || "e-Billing System Bukti Pembayaran";
+            document.getElementById("set-logo-align").value = db.settings.logoAlign || "right";
+            document.getElementById("set-header-title-align").value = db.settings.titleAlign || "center";
+            document.getElementById("set-wa-template").value = db.settings.waTemplate || "";
+            document.getElementById("set-wa-reg-template").value = db.settings.waRegTemplate || "";
+            document.getElementById("set-fonnte-token").value = db.settings.fonnteToken || "";
+            document.getElementById("set-use-fonnte").checked = db.settings.useFonnte || false;
+            
+            document.getElementById("nav-brand-name").innerText = db.settings.brandName;
+            document.getElementById("nav-company-name").innerText = db.settings.companyName;
+            document.getElementById("login-brand-display").innerText = db.settings.brandName;
+        }
+
+        function renderLogoUI() {
+            if (db.settings.logoBase64) {
+                const imgTag = `<img src="${db.settings.logoBase64}" class="w-full h-full object-contain">`;
+                document.getElementById("header-logo-container").innerHTML = imgTag;
+                document.getElementById("login-logo-preview").innerHTML = imgTag;
+                document.getElementById("settings-logo-preview").innerHTML = imgTag;
+            } else {
+                const iconTag = `<i class="fa-solid fa-wifi text-xl text-indigo-600"></i>`;
+                document.getElementById("header-logo-container").innerHTML = iconTag;
+                document.getElementById("login-logo-preview").innerHTML = iconTag;
+                document.getElementById("settings-logo-preview").innerHTML = iconTag;
+            }
+        }
+
+        function previewLogoUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = async function(e) {
+                    db.settings.logoBase64 = e.target.result;
+                    await saveLocalStorage();
+                    renderLogoUI();
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        async function removeLogo() {
+            db.settings.logoBase64 = "";
+            await saveLocalStorage();
+            renderLogoUI();
+        }
+
+        async function saveSystemSettings() {
+            db.settings.brandName = document.getElementById("set-brand-name").value;
+            db.settings.companyName = document.getElementById("set-company-name").value;
+            db.settings.adminName = document.getElementById("set-admin-name").value;
+            db.settings.companyAddress = document.getElementById("set-company-address").value;
+            db.settings.companyContact = document.getElementById("set-company-contact").value;
+            db.settings.systemLabel = document.getElementById("set-sys-label").value;
+            db.settings.logoAlign = document.getElementById("set-logo-align").value;
+            db.settings.titleAlign = document.getElementById("set-header-title-align").value;
+            db.settings.waTemplate = document.getElementById("set-wa-template").value;
+            db.settings.waRegTemplate = document.getElementById("set-wa-reg-template").value;
+            db.settings.fonnteToken = document.getElementById("set-fonnte-token").value;
+            db.settings.useFonnte = document.getElementById("set-use-fonnte").checked;
+            
+            await saveLocalStorage();
+            renderAllData();
+            alert("Pengaturan Berhasil Disimpan ke Cloud!");
+        }
+
+        async function testFonnteConnection() {
+    const token = document.getElementById("set-fonnte-token").value;
+    if(!token) { 
+        alert("Masukkan token Fonnte terlebih dahulu!"); 
+        return; 
+    }
+
+    // Tampilkan informasi bahwa pengecekan sedang berjalan
+    alert("Menghubungkan ke server Fonnte...");
+
+    try {
+        // Menggunakan endpoint validasi/device dari Fonnte untuk tes token
+        const response = await fetch('https://api.fonnte.com/device', {
+            method: 'POST',
+            headers: {
+                'Authorization': token
+            }
+        });
+
+        const result = await response.json();
+
+        // Cek apakah token valid berdasarkan balasan dari server Fonnte
+        if (result.status || result.device) {
+            alert("Berhasil! Token Fonnte terhubung dan aktif.");
+        } else {
+            alert("Gagal: Token Fonnte tidak valid atau kadaluarsa.");
+        }
+    } catch (error) {
+        console.error("Error:", error);
+        alert("Terjadi kesalahan jaringan saat mencoba menghubungi Fonnte.");
+    }
+}
+        /* AKSI MODAL & EDIT PELANGGAN */
+        function openCustomerModal() {
+            document.getElementById("modal-cust-title").innerText = "Tambah Pelanggan Baru";
+            document.getElementById("cust-id").value = "";
+            document.getElementById("cust-name").value = "";
+            document.getElementById("cust-phone").value = "";
+            document.getElementById("cust-address").value = "";
+            document.getElementById("cust-ip").value = "";
+            
+            let pkgOpt = "";
+            db.packages.forEach(p => { pkgOpt += `<option value="${p.name}">${p.name}</option>`; });
+            document.getElementById("cust-package").innerHTML = pkgOpt;
+
+            let odpOpt = `<option value="">-- Pilih ODP --</option>`;
+            db.odps.forEach(o => { odpOpt += `<option value="${o.name}">${o.name} (${o.location})</option>`; });
+            document.getElementById("cust-odp").innerHTML = odpOpt;
+
+            document.getElementById("modal-customer").classList.remove("hidden");
+            document.getElementById("modal-customer").classList.add("flex");
+        }
+
+        function closeCustomerModal() {
+            document.getElementById("modal-customer").classList.add("hidden");
+            document.getElementById("modal-customer").classList.remove("flex");
+        }
+
+        function editCustomer(id) {
+            const c = db.customers.find(item => item.id === id);
+            if(!c) return;
+            openCustomerModal();
+            document.getElementById("modal-cust-title").innerText = "Edit Data Pelanggan";
+            document.getElementById("cust-id").value = c.id;
+            document.getElementById("cust-name").value = c.name;
+            document.getElementById("cust-phone").value = c.phone;
+            document.getElementById("cust-address").value = c.address || "";
+            document.getElementById("cust-package").value = c.package;
+            document.getElementById("cust-ip").value = c.ip;
+            document.getElementById("cust-odp").value = c.odp || "";
+            document.getElementById("cust-due").value = c.dueDay;
+            document.getElementById("cust-status").value = c.status || "Aktif";
+        }
+
+        async function saveCustomerData(e) {
+            e.preventDefault();
+            const id = document.getElementById("cust-id").value;
+            const name = document.getElementById("cust-name").value;
+            const phone = document.getElementById("cust-phone").value;
+            const address = document.getElementById("cust-address").value;
+            const pkg = document.getElementById("cust-package").value;
+            const ip = document.getElementById("cust-ip").value;
+            const odp = document.getElementById("cust-odp").value;
+            const dueDay = parseInt(document.getElementById("cust-due").value);
+            const status = document.getElementById("cust-status").value;
+
+            if(id) {
+                const c = db.customers.find(item => item.id == id);
+                if(c) {
+                    c.name = name; c.phone = phone; c.address = address; c.package = pkg;
+                    c.ip = ip; c.odp = odp; c.dueDay = dueDay; c.status = status;
+                }
+            } else {
+                db.customers.push({
+                    id: Date.now(),
+                    name: name, phone: phone, address: address, package: pkg,
+                    ip: ip, odp: odp, dueDay: dueDay, status: status, bills: {}
+                });
+            }
+            await saveLocalStorage();
+            closeCustomerModal();
+            renderAllData();
+        }
+
+        async function deleteCustomer(id) {
+            if(confirm("Yakin hapus pelanggan ini?")) {
+                db.customers = db.customers.filter(c => c.id !== id);
+                await saveLocalStorage();
+                renderAllData();
+            }
+        }
+
+        /* MODAL APPROVAL PEMBAYARAN PER BULAN */
+        function openPayModal(id) {
+            const c = db.customers.find(item => item.id === id);
+            if(!c) return;
+            const pkg = db.packages.find(p => p.name === c.package);
+            const total = pkg ? pkg.price : 0;
+
+            document.getElementById("pay-cust-id").value = c.id;
+            document.getElementById("pay-cust-name").value = c.name;
+            document.getElementById("pay-cust-month-display").value = formatMonthName(currentBillingMonth);
+            document.getElementById("pay-cust-nominal").value = "Rp " + total.toLocaleString('id-ID');
+            document.getElementById("pay-note").value = `Pembayaran ${formatMonthName(currentBillingMonth)}`;
+
+            document.getElementById("modal-pay").classList.remove("hidden");
+            document.getElementById("modal-pay").classList.add("flex");
+        }
+
+        function closePayModal() {
+            document.getElementById("modal-pay").classList.add("hidden");
+            document.getElementById("modal-pay").classList.remove("flex");
+        }
+
+        async function submitCustomerPayment(e) {
+            e.preventDefault();
+            const id = parseInt(document.getElementById("pay-cust-id").value);
+            const method = document.getElementById("pay-method").value;
+            const note = document.getElementById("pay-note").value;
+
+            const c = db.customers.find(item => item.id === id);
+            if(c) {
+                if(!c.bills) c.bills = {};
+                c.bills[currentBillingMonth] = {
+                    paidStatus: "Menunggu Approval",
+                    paymentInfo: {
+                        method: method,
+                        note: note,
+                        time: new Date().toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })
+                    }
+                };
+                await saveLocalStorage();
+                closePayModal();
+                renderAllData();
+                alert(`Konfirmasi pembayaran periode ${formatMonthName(currentBillingMonth)} berhasil dicatat! Menunggu approval admin.`);
+            }
+        }
+
+        async function approvePayment(id) {
+            const c = db.customers.find(item => item.id === id);
+            if(c && c.bills && c.bills[currentBillingMonth]) {
+                const b = c.bills[currentBillingMonth];
+                b.paidStatus = "Lunas";
+
+                const pkg = db.packages.find(p => p.name === c.package);
+                const total = pkg ? pkg.price : 0;
+                
+                const timeStr = new Date().toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' });
+                const methodStr = b.paymentInfo ? b.paymentInfo.method : "Tunai";
+                const noteStr = b.paymentInfo ? b.paymentInfo.note : `Pembayaran ${formatMonthName(currentBillingMonth)}`;
+
+                db.finance.unshift({
+                    id: Date.now(),
+                    month: currentBillingMonth,
+                    time: timeStr,
+                    custName: c.name,
+                    amount: total,
+                    method: methodStr,
+                    note: noteStr
+                });
+
+                await saveLocalStorage();
+                renderAllData();
+                alert(`Pembayaran periode ${formatMonthName(currentBillingMonth)} untuk ${c.name} berhasil di-approve!`);
+            }
+        }
+
+        /* AKSI MODAL ODP */
+        function openOdpModal() {
+            document.getElementById("modal-odp-title").innerText = "Tambah Data ODP";
+            document.getElementById("odp-id").value = "";
+            document.getElementById("odp-name").value = "";
+            document.getElementById("odp-location").value = "";
+            document.getElementById("modal-odp").classList.remove("hidden");
+            document.getElementById("modal-odp").classList.add("flex");
+        }
+        function closeOdpModal() {
+            document.getElementById("modal-odp").classList.add("hidden");
+            document.getElementById("modal-odp").classList.remove("flex");
+        }
+        function editOdp(id) {
+            const odp = db.odps.find(o => o.id === id);
+            if(!odp) return;
+            openOdpModal();
+            document.getElementById("modal-odp-title").innerText = "Edit Data ODP";
+            document.getElementById("odp-id").value = odp.id;
+            document.getElementById("odp-name").value = odp.name;
+            document.getElementById("odp-location").value = odp.location;
+            document.getElementById("odp-capacity").value = odp.capacity;
+            document.getElementById("odp-status").value = odp.status;
+        }
+        async function saveOdpData(e) {
+            e.preventDefault();
+            const id = document.getElementById("odp-id").value;
+            const name = document.getElementById("odp-name").value;
+            const loc = document.getElementById("odp-location").value;
+            const cap = parseInt(document.getElementById("odp-capacity").value);
+            const status = document.getElementById("odp-status").value;
+
+            if(id) {
+                const o = db.odps.find(item => item.id == id);
+                if(o) { o.name = name; o.location = loc; o.capacity = cap; o.status = status; }
+            } else {
+                db.odps.push({ id: Date.now(), name: name, location: loc, capacity: cap, status: status });
+            }
+            await saveLocalStorage();
+            closeOdpModal();
+            renderAllData();
+        }
+        async function deleteOdp(id) {
+            if(confirm("Hapus data ODP ini?")) {
+                db.odps = db.odps.filter(o => o.id !== id);
+                await saveLocalStorage();
+                renderAllData();
+            }
+        }
+
+        /* AKSI MODAL OLT */
+        function openOltModal() {
+            document.getElementById("modal-olt-title").innerText = "Tambah Data OLT";
+            document.getElementById("olt-id").value = "";
+            document.getElementById("olt-name").value = "";
+            document.getElementById("olt-ip").value = "";
+            document.getElementById("modal-olt").classList.remove("hidden");
+            document.getElementById("modal-olt").classList.add("flex");
+        }
+        function closeOltModal() {
+            document.getElementById("modal-olt").classList.add("hidden");
+            document.getElementById("modal-olt").classList.remove("flex");
+        }
+        function editOlt(id) {
+            const o = db.olts.find(item => item.id === id);
+            if(!o) return;
+            openOltModal();
+            document.getElementById("modal-olt-title").innerText = "Edit Data OLT";
+            document.getElementById("olt-id").value = o.id;
+            document.getElementById("olt-name").value = o.name;
+            document.getElementById("olt-ip").value = o.ip;
+            document.getElementById("olt-model").value = o.model;
+            document.getElementById("olt-status").value = o.status;
+        }
+        async function saveOltData(e) {
+            e.preventDefault();
+            const id = document.getElementById("olt-id").value;
+            const name = document.getElementById("olt-name").value;
+            const ip = document.getElementById("olt-ip").value;
+            const model = document.getElementById("olt-model").value;
+            const status = document.getElementById("olt-status").value;
+
+            if(id) {
+                const o = db.olts.find(item => item.id == id);
+                if(o) { o.name = name; o.ip = ip; o.model = model; o.status = status; }
+            } else {
+                db.olts.push({ id: Date.now(), name: name, ip: ip, model: model, status: status });
+            }
+            await saveLocalStorage();
+            closeOltModal();
+            renderAllData();
+        }
+        async function deleteOlt(id) {
+            if(confirm("Hapus data OLT ini?")) {
+                db.olts = db.olts.filter(o => o.id !== id);
+                await saveLocalStorage();
+                renderAllData();
+            }
+        }
+
+        /* AKSI MODAL PAKET */
+        function openPackageModal() {
+            document.getElementById("modal-pkg-title").innerText = "Tambah Paket Internet";
+            document.getElementById("pkg-id").value = "";
+            document.getElementById("pkg-name").value = "";
+            document.getElementById("pkg-speed").value = "";
+            document.getElementById("pkg-price").value = "";
+            document.getElementById("pkg-desc").value = "";
+            document.getElementById("modal-package").classList.remove("hidden");
+            document.getElementById("modal-package").classList.add("flex");
+        }
+        function closePackageModal() {
+            document.getElementById("modal-package").classList.add("hidden");
+            document.getElementById("modal-package").classList.remove("flex");
+        }
+        function editPackage(id) {
+            const p = db.packages.find(pkg => pkg.id === id);
+            if(!p) return;
+            openPackageModal();
+            document.getElementById("modal-pkg-title").innerText = "Edit Paket Internet";
+            document.getElementById("pkg-id").value = p.id;
+            document.getElementById("pkg-name").value = p.name;
+            document.getElementById("pkg-speed").value = p.speed;
+            document.getElementById("pkg-price").value = p.price;
+            document.getElementById("pkg-desc").value = p.desc;
+        }
+        async function savePackageData(e) {
+            e.preventDefault();
+            const id = document.getElementById("pkg-id").value;
+            const name = document.getElementById("pkg-name").value;
+            const speed = document.getElementById("pkg-speed").value;
+            const price = parseInt(document.getElementById("pkg-price").value);
+            const desc = document.getElementById("pkg-desc").value;
+
+            if(id) {
+                const p = db.packages.find(item => item.id == id);
+                if(p) { p.name = name; p.speed = speed; p.price = price; p.desc = desc; }
+            } else {
+                db.packages.push({ id: Date.now(), name: name, speed: speed, price: price, desc: desc });
+            }
+            await saveLocalStorage();
+            closePackageModal();
+            renderAllData();
+        }
+        async function deletePackage(id) {
+            if(confirm("Hapus paket ini?")) {
+                db.packages = db.packages.filter(p => p.id !== id);
+                await saveLocalStorage();
+                renderAllData();
+            }
+        }
+
+        async function sendSingleWhatsApp(id) {
+    const c = db.customers.find(item => item.id === id);
+    if(c) {
+        const pkg = db.packages.find(p => p.name === c.package);
+        const total = pkg ? pkg.price : 0;
+        
+        let msg = (db.settings.waTemplate || "")
+            .replace(/{nama}/g, c.name)
+            .replace(/{paket}/g, c.package)
+            .replace(/{bulan}/g, formatMonthName(currentBillingMonth))
+            .replace(/{total}/g, total.toLocaleString('id-ID'))
+            .replace(/{tgl_tempo}/g, c.dueDate)
+            .replace(/{perusahaan}/g, db.settings.companyName);
+
+        // Ambil token Fonnte dari input pengaturan aplikasi
+        const token = document.getElementById("set-fonnte-token") ? document.getElementById("set-fonnte-token").value : "";
+        if (!token) {
+            alert("Token Fonnte belum diatur! Masukkan token di menu pengaturan.");
+            return;
+        }
+
+        // Siapkan data untuk dikirim ke API Fonnte
+        const bodyData = new URLSearchParams();
+        bodyData.append('target', c.phone);
+        bodyData.append('message', msg);
+
+        try {
+            // Tampilkan indikator proses sebentar
+            console.log("Mengirim pesan otomatis ke " + c.name + "...");
+
+            const response = await fetch('https://api.fonnte.com/send', {
+                method: 'POST',
+                headers: {
+                    'Authorization': token
+                },
+                body: bodyData
+            });
+
+            const result = await response.json();
+
+            if (result.status) {
+                alert("Pesan tagihan berhasil dikirim otomatis ke " + c.name + "!");
+            } else {
+                alert("Gagal kirim: " + (result.reason || "Periksa nomor HP atau token Fonnte."));
+            }
+        } catch (error) {
+            console.error("Error:", error);
+            alert("Terjadi kesalahan jaringan saat mengirim pesan Fonnte.");
+        }
+    }
+}
+
+        async function sendWelcomeWhatsApp(id) {
+    const c = db.customers.find(item => item.id === id);
+    if(c) {
+        const pkg = db.packages.find(p => p.name === c.package);
+        const basePrice = pkg ? pkg.price : 0;
+        
+       let msg = (db.settings.waRegTemplate || "")
+      .replace(/{nama}/g, c.name || c.nama || '-')
+      .replace(/{alamat}/g, c.address || c.alamat || c.alamat_pelanggan || '-')
+      .replace(/{paket}/g, c.package || c.paket || '-')
+      .replace(/{harga}/g, basePrice.toLocaleString('id-ID'))
+      .replace(/{ip}/g, c.ip || c.ip_address || '-')
+      .replace(/{tgl_tempo}/g, c.dueDate || c.tgl_tempo || c.jatuh_tempo || c.tempo || '-')
+      .replace(/{perusahaan}/g, db.settings.companyName || '-');
+
+        // Ambil token Fonnte dari pengaturan
+        const token = document.getElementById("set-fonnte-token") ? document.getElementById("set-fonnte-token").value : "";
+        if (!token) {
+            alert("Token Fonnte belum diatur! Masukkan token di menu pengaturan.");
+            return;
+        }
+
+        // Siapkan data untuk dikirim ke API Fonnte
+        const bodyData = new URLSearchParams();
+        bodyData.append('target', c.phone);
+        bodyData.append('message', msg);
+
+        try {
+            console.log("Mengirim pesan sambutan otomatis ke " + c.name + "...");
+
+            const response = await fetch('https://api.fonnte.com/send', {
+                method: 'POST',
+                headers: {
+                    'Authorization': token
+                },
+                body: bodyData
+            });
+
+            const result = await response.json();
+
+            if (result.status) {
+                alert("Pesan sambutan berhasil dikirim otomatis ke " + c.name + "!");
+            } else {
+                alert("Gagal kirim: " + (result.reason || "Periksa nomor HP atau token Fonnte."));
+            }
+        } catch (error) {
+            console.error("Error:", error);
+            alert("Terjadi kesalahan jaringan saat mengirim pesan Fonnte.");
+        }
+    }
+}
+
+        function generateMonthlyBills() {
+            currentBillingMonth = getCurrentMonthCode();
+            document.getElementById("filter-billing-month").value = currentBillingMonth;
+            renderAllData();
+        }
+
+        function toggleSelectAllBills(master) {
+            document.querySelectorAll('.bill-checkbox').forEach(cb => cb.checked = master.checked);
+        }
+
+        async function approveBulkBills() {
+            let count = 0;
+            document.querySelectorAll('.bill-checkbox:checked').forEach(cb => {
+                const id = parseInt(cb.getAttribute('data-id'));
+                const c = db.customers.find(item => item.id === id);
+                if(c) {
+                    if(!c.bills) c.bills = {};
+                    const b = c.bills[currentBillingMonth];
+                    if(!b || b.paidStatus !== "Lunas") {
+                        c.bills[currentBillingMonth] = {
+                            paidStatus: "Lunas",
+                            paymentInfo: { method: "Tunai", note: `Pembayaran ${formatMonthName(currentBillingMonth)}`, time: new Date().toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' }) }
+                        };
+                        const pkg = db.packages.find(p => p.name === c.package);
+                        const total = pkg ? pkg.price : 0;
+                        
+                        db.finance.unshift({
+                            id: Date.now() + count,
+                            month: currentBillingMonth,
+                            time: new Date().toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' }),
+                            custName: c.name,
+                            amount: total,
+                            method: "Tunai",
+                            note: `Pembayaran ${formatMonthName(currentBillingMonth)}`
+                        });
+                        count++;
+                    }
+                }
+            });
+            await saveLocalStorage();
+            renderAllData();
+            alert(`${count} pembayaran pelanggan periode ${formatMonthName(currentBillingMonth)} berhasil di-approve massal!`);
+        }
+
+        function sendBulkWhatsApp() {
+            alert(`Pengiriman WhatsApp massal siap dijalankan untuk periode ${formatMonthName(currentBillingMonth)}.`);
+        }
+
+        /* FUNGSI PRINT KWITANSI */
+        function printKwitansi(id) {
+            const c = db.customers.find(item => item.id === id);
+            if(!c) return;
+            const pkg = db.packages.find(p => p.name === c.package);
+            const total = pkg ? pkg.price : 0;
+            const billData = (c.bills && c.bills[currentBillingMonth]) ? c.bills[currentBillingMonth] : { paidStatus: "Belum Bayar", paymentInfo: null };
+
+            const now = new Date();
+            const dateStr = String(now.getDate()).padStart(2,'0') + '/' + String(now.getMonth() + 1).padStart(2,'0') + '/' + String(now.getFullYear()).slice(-2);
+            const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            document.getElementById("pr-top-date").innerText = `${dateStr}, ${timeStr}`;
+
+            document.getElementById("pr-title-box").innerText = db.settings.systemLabel || "e-Billing System Bukti Pembayaran";
+            
+            const titleAlign = db.settings.titleAlign || "center";
+            const titleBox = document.getElementById("pr-title-box");
+            if(titleAlign === "left") {
+                titleBox.style.textAlign = "left";
+                titleBox.style.paddingLeft = "120px";
+            } else if(titleAlign === "right") {
+                titleBox.style.textAlign = "right";
+                titleBox.style.paddingRight = "120px";
+            } else {
+                titleBox.style.textAlign = "center";
+                titleBox.style.paddingLeft = "0";
+                titleBox.style.paddingRight = "0";
+            }
+
+            const logoBox = document.getElementById("pr-logo-box");
+            const logoAlign = db.settings.logoAlign || "right";
+            if(logoAlign === "left") {
+                logoBox.style.right = "auto";
+                logoBox.style.left = "0";
+            } else if(logoAlign === "center") {
+                logoBox.style.right = "50%";
+                logoBox.style.transform = "translateX(50%)";
+            } else {
+                logoBox.style.right = "0";
+                logoBox.style.left = "auto";
+                logoBox.style.transform = "none";
+            }
+
+            if (db.settings.logoBase64) {
+                logoBox.innerHTML = `<img src="${db.settings.logoBase64}" style="max-height: 45px; object-fit: contain;">`;
+            } else {
+                logoBox.innerHTML = `<i class="fa-solid fa-wifi text-2xl text-indigo-600"></i>`;
+            }
+
+            document.getElementById("pr-cust-id").innerText = "26" + String(c.id).slice(-8);
+            document.getElementById("pr-cust-name").innerText = c.name;
+            document.getElementById("pr-cust-phone").innerText = c.phone;
+            document.getElementById("pr-cust-addr").innerText = c.address || "-";
+            
+            const timeNow = billData.paymentInfo ? billData.paymentInfo.time : new Date().toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' });
+            document.getElementById("pr-time").innerText = timeNow;
+            document.getElementById("pr-account").innerText = "5" + String(c.id).slice(-3);
+            document.getElementById("pr-nobukti").innerText = "26" + String(c.id).slice(-5) + Math.floor(Math.random() * 900 + 100);
+            document.getElementById("pr-noted").innerText = `Pembayaran ${formatMonthName(currentBillingMonth)}`;
+
+            const itemName = `Internet Fiber Paket ${c.package}, ${formatMonthName(currentBillingMonth)}`;
+            document.getElementById("pr-item-name").innerText = itemName;
+            document.getElementById("pr-item-price").innerText = total.toLocaleString('id-ID');
+            document.getElementById("pr-item-pay").innerText = total.toLocaleString('id-ID');
+            document.getElementById("pr-item-total").innerText = total.toLocaleString('id-ID');
+            document.getElementById("pr-grand-total").innerText = total.toLocaleString('id-ID');
+            
+            document.getElementById("pr-terbilang").innerText = terbilang(total) + " Rupiah";
+            document.getElementById("pr-method").innerText = billData.paymentInfo ? billData.paymentInfo.method : "Tunai";
+
+            const isLunas = billData.paidStatus === "Lunas";
+            document.getElementById("pr-status-text").innerText = isLunas ? "LUNAS" : "BELUM LUNAS / PENDING";
+            document.getElementById("pr-status-text").style.color = isLunas ? "#16a34a" : "#dc2626";
+
+            const printArea = document.getElementById("print-area");
+            printArea.classList.remove("hidden");
+
+            window.print();
+
+            setTimeout(() => {
+                printArea.classList.add("hidden");
+            }, 500);
+        }
+
+        function exportDataJSON() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(db, null, 2));
+            const dlAnchor = document.createElement('a');
+            dlAnchor.setAttribute("href", dataStr);
+            dlAnchor.setAttribute("download", "netmanager_backup.json");
+            document.body.appendChild(dlAnchor);
+            dlAnchor.click();
+            dlAnchor.remove();
+        }
+
+        async function importDataJSON(event) {
+            const fileReader = new FileReader();
+            if (event.target.files[0]) {
+                fileReader.readAsText(event.target.files[0], "UTF-8");
+                fileReader.onload = async function(e) {
+                    try {
+                        db = JSON.parse(e.target.result);
+                        await saveLocalStorage();
+                        renderAllData();
+                        alert("Data Berhasil di-Restore ke Cloud!");
+                    } catch (err) {
+                        alert("File JSON tidak valid!");
+                    }
+                };
+            }
+        }
+    </script>
+</body>
+</html>
